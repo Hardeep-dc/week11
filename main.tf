@@ -50,6 +50,12 @@ resource "aws_instance" "web" {
   instance_type          = "t2.micro"
   vpc_security_group_ids = [aws_security_group.web-sg.id]
 
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_put_response_hop_limit = 1
+    http_tokens                 = "required" # Enabling IMDSv2
+  }
+
   user_data = <<-EOF
               #!/bin/bash
               apt-get update
@@ -58,6 +64,10 @@ resource "aws_instance" "web" {
               echo "Hello World" > /var/www/html/index.html
               systemctl restart apache2
               EOF
+
+  root_block_device {
+    encrypted = true # Encrypting the EBS volume
+  }
 }
 
 resource "aws_security_group" "web-sg" {
@@ -66,16 +76,17 @@ resource "aws_security_group" "web-sg" {
     from_port   = 8080
     to_port     = 8080
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = ["10.0.0.0/16"] # Specify your IP range here
   }
-  // connectivity to ubuntu mirrors is required to run `apt-get update` and `apt-get install apache2`
   egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = ["10.0.0.0/16"] # Specify your IP range here
   }
 }
+
+
 
 output "web-address" {
   value = "${aws_instance.web.public_dns}:8080"
